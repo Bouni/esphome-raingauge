@@ -1,0 +1,104 @@
+---
+substitutions:
+  name: raingauge
+  friendly_name: "Rain Gauge"
+
+esphome:
+  name: $name
+  platform: esp32
+  board: lolin_s2_mini
+  platformio_options:
+    platform_packages:
+      - espressif/toolchain-riscv32-esp
+    board_build.mcu: esp32s2
+
+# WiFi connection
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  ap:
+    ssid: RainGauge-Hotspot
+    password: hotspotpw
+
+captive_portal:
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+# Enable over-the-air updates
+ota:
+
+# Enable Web server
+web_server:
+  port: 80
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: IP Address
+    ssid:
+      name: Connected SSID
+    bssid:
+      name: Connected BSSID
+    mac_address:
+      name: Mac Wifi Address
+
+  - platform: version
+    name: "ESPHome Version"
+
+status_led:
+  pin: GPIO15
+
+sensor:
+  - platform: pulse_counter
+    pin:
+      # Don't forget to add a pulling resistor, see README
+      number: GPIO40
+      inverted: true
+      mode:
+        input: true
+        pullup: true
+    unit_of_measurement: "mm"
+    name: "${friendly_name} rain gauge"
+    icon: "mdi:weather-rainy"
+    id: rain_gauge
+    internal: true
+    count_mode:
+      rising_edge: DISABLE
+      falling_edge: INCREMENT
+    internal_filter: 13us
+    update_interval: 60s
+    filters:
+      # Each 0.011" (0.2794mm) of rain causes one momentary contact closure
+      - multiply: 0.2794
+    accuracy_decimals: 4
+
+  - platform: integration
+    name: "${friendly_name} rainfall per min"
+    id: rain_per_min
+    time_unit: min
+    unit_of_measurement: "mm"
+    icon: "mdi:weather-rainy"
+    sensor: rain_gauge
+
+  - platform: total_daily_energy
+    name: "${friendly_name} total daily rain"
+    power_id: rain_gauge
+    unit_of_measurement: "mm"
+    icon: "mdi:weather-rainy"
+    # x60 To convert to aggregated rain amount
+    filters:
+      - multiply: 60
+
+interval:
+  - interval: 60s
+    then:
+      - sensor.integration.reset: rain_per_min
+
+# Enable time component to reset energy at midnight
+time:
+  - platform: sntp
+    timezone: "Europe/Berlin"
